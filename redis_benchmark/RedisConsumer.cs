@@ -4,7 +4,7 @@ using StackExchange.Redis;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
-public class RedisConsumer
+public class RedisConsumer : IDisposable
 {
     private readonly ConnectionMultiplexer _redis;
     private readonly IDatabase _db;
@@ -29,6 +29,7 @@ public class RedisConsumer
         stopwatch.Stop();
         Console.WriteLine($"Performed {operations} {functionName} operations in {stopwatch.ElapsedMilliseconds} ms");
     }
+    
     public void GetStringBenchmark(int operations, string keyPrefix)
     {
         string functionName = nameof(GetStringBenchmark);
@@ -44,7 +45,7 @@ public class RedisConsumer
         Console.WriteLine($"Performed {operations} {functionName} operations in {stopwatch.ElapsedMilliseconds} ms");
     }
     
-    public async Task SetStringBenchmarkAsync(int operations, string keyPrefix)
+    public async Task SetStringBenchmarkAsync(int operations, string keyPrefix, int networkLatencyInMs = 0)
     {
         string functionName = nameof(SetStringBenchmarkAsync);
         Stopwatch stopwatch = new Stopwatch();
@@ -53,16 +54,24 @@ public class RedisConsumer
         var tasks = new Task[operations];
         for (int i = 0; i < operations; i++)
         {
-            tasks[i] = _db.StringSetAsync($"key:{keyPrefix}_{i}", $"value:{i}");
+            tasks[i] = Task.Run(async () =>
+            {
+                var result = await _db.StringSetAsync($"key:{keyPrefix}_{i}", $"value:{i}");
+                if(networkLatencyInMs > 0)
+                {
+                    await SimulateNetworkLatencyAsync(networkLatencyInMs);
+                }
+                return result;
+            });
         }
 
         await Task.WhenAll(tasks);
 
         stopwatch.Stop();
-        Console.WriteLine($"Performed {operations} {functionName} operations in {stopwatch.ElapsedMilliseconds} ms");
+        Console.WriteLine($"Performed {operations} {functionName} operations with {networkLatencyInMs} ms latency in {stopwatch.ElapsedMilliseconds} ms");
     }
 
-    public async Task GetStringBenchmarkAsync(int operations, string keyPrefix)
+    public async Task GetStringBenchmarkAsync(int operations, string keyPrefix, int networkLatencyInMs = 0)
     {
         string functionName = nameof(GetStringBenchmarkAsync);
         Stopwatch stopwatch = new Stopwatch();
@@ -71,16 +80,24 @@ public class RedisConsumer
         var tasks = new Task[operations];
         for (int i = 0; i < operations; i++)
         {
-            tasks[i] = _db.StringGetAsync($"key:{keyPrefix}_{i}");
+            tasks[i] = Task.Run(async () =>
+            {
+                var result = await _db.StringSetAsync($"key:{keyPrefix}_{i}", $"value:{i}");
+                if(networkLatencyInMs > 0)
+                {
+                    await SimulateNetworkLatencyAsync(networkLatencyInMs);
+                }
+                return result;
+            });
         }
 
         await Task.WhenAll(tasks);
 
         stopwatch.Stop();
-        Console.WriteLine($"Performed {operations} {functionName} operations in {stopwatch.ElapsedMilliseconds} ms");
+        Console.WriteLine($"Performed {operations} {functionName} operations with {networkLatencyInMs} ms latency in {stopwatch.ElapsedMilliseconds} ms");
     }
 
-    public async Task BatchSetStringBenchmarkAsync(int operations, string keyPrefix)
+    public async Task BatchSetStringBenchmarkAsync(int operations, string keyPrefix, int networkLatencyInMs = 0)
     {
         string functionName = nameof(BatchSetStringBenchmarkAsync);
         var batch = _db.CreateBatch();
@@ -94,13 +111,18 @@ public class RedisConsumer
             tasks[i] = batch.StringSetAsync($"key:{keyPrefix}_{i}", $"value:{i}");
         }
 
+        if(networkLatencyInMs > 0)
+        {
+            await SimulateNetworkLatencyAsync(networkLatencyInMs);
+        }
+
         batch.Execute();
         await Task.WhenAll(tasks);
         stopwatch.Stop();
-        Console.WriteLine($"Performed {operations} {functionName} operations in {stopwatch.ElapsedMilliseconds} ms");
+        Console.WriteLine($"Performed {operations} {functionName} operations with {networkLatencyInMs} ms latency in {stopwatch.ElapsedMilliseconds} ms");
     }
 
-    public async Task BatchGetStringBenchmarkAsync(int operations, string keyPrefix)
+    public async Task BatchGetStringBenchmarkAsync(int operations, string keyPrefix, int networkLatencyInMs = 0)
     {
         string functionName = nameof(BatchGetStringBenchmarkAsync);
         var batch = _db.CreateBatch();
@@ -113,10 +135,25 @@ public class RedisConsumer
             tasks[i] = batch.StringGetAsync($"key:{keyPrefix}_{i}");
         }
 
+        if(networkLatencyInMs > 0)
+        {
+            await SimulateNetworkLatencyAsync(networkLatencyInMs);
+        }
         batch.Execute();
         await Task.WhenAll(tasks);
 
         stopwatch.Stop();
-        Console.WriteLine($"Performed {operations} {functionName} operations in {stopwatch.ElapsedMilliseconds} ms");
+        Console.WriteLine($"Performed {operations} {functionName} operations with {networkLatencyInMs} ms latency in {stopwatch.ElapsedMilliseconds} ms");
+    }
+
+    private async Task SimulateNetworkLatencyAsync(int latencyInMilliseconds)
+    {
+        // Simulate network latency
+        await Task.Delay(latencyInMilliseconds);
+    }
+
+    public void Dispose()
+    {
+        _redis?.Dispose();
     }
 }
