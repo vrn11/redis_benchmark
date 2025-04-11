@@ -127,7 +127,7 @@ class Program
         // Implementation for async batch benchmark
         for (int i = 0; i < 6; i++)
         {
-            await redisConsumer.LuaGetStringBenchmarkBatchingAsync(operations, $"{keyPrefix}_{i}", networkLatencyInMs);
+            await redisConsumer.BatchSetStringBenchmarkAsync(operations, $"{keyPrefix}_{i}", networkLatencyInMs);
             operations *= 10; // Increase the number of operations for each iteration
         }
     }
