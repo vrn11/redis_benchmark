@@ -6,18 +6,28 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        using (var redisConsumer = new RedisConsumer("localhost:6379"))
+        await RunBenchmarks();
+    }
+
+    private static async Task RunBenchmarks()
+    {
+        int operations = 10; // Number of operations to perform
+        int lowLatency = 10; // Low latency in milliseconds
+        int highLatency = 1000; // High latency in milliseconds
+        string connectionString = "localhost:6379"; // Redis connection string
+        using(RedisConsumer redisConsumer = new RedisConsumer(connectionString))
         {
-            await RunBenchmarks(redisConsumer);
+            await RunBenchmarks(redisConsumer, operations, lowLatency, highLatency);
         }
     }
 
-    private static async Task RunBenchmarks(RedisConsumer redisConsumer)
+    private static async Task RunBenchmarks(
+        RedisConsumer redisConsumer,
+        int operations,
+        int lowLatency,
+        int highLatency, 
+        int luaMaxParams = 500000)
     {
-        int operations = 100; // Number of operations to perform
-        int lowLatency = 10; // Low latency in milliseconds
-        int highLatency = 100; // High latency in milliseconds
-
         // Perform synchronous benchmarks
         SetStringBenchmark(redisConsumer, operations, "sync");
         Console.WriteLine("=========================\r\n");
@@ -36,6 +46,12 @@ class Program
         await BatchGetStringBenchmarkAsync(redisConsumer, operations, "batch");
         Console.WriteLine("=========================\r\n");
 
+        // Perform Lua benchmarks
+        await LuaSetStringBenchmarkAsync(redisConsumer, operations, luaMaxParams, "lua");
+        Console.WriteLine("=========================\r\n");
+        await LuaGetStringBenchmarkAsync(redisConsumer, operations, luaMaxParams, "lua");
+        Console.WriteLine("=========================\r\n");
+
         // Perform asynchronous benchmarks with 10 ms network latency
         await SetStringBenchmarkAsync(redisConsumer, operations, "async_low_latency", lowLatency);
         Console.WriteLine("=========================\r\n");
@@ -46,6 +62,12 @@ class Program
         await BatchSetStringBenchmarkAsync(redisConsumer, operations, "batch_low_latency", lowLatency);
         Console.WriteLine("=========================\r\n");
         await BatchGetStringBenchmarkAsync(redisConsumer, operations, "batch_low_latency", lowLatency);
+        Console.WriteLine("=========================\r\n");
+
+        // Perform Lua benchmarks with 10 ms network latency
+        await LuaSetStringBenchmarkAsync(redisConsumer, operations,luaMaxParams, "lua_low_latency", lowLatency);
+        Console.WriteLine("=========================\r\n");
+        await LuaGetStringBenchmarkAsync(redisConsumer, operations, luaMaxParams,"lua_low_latency", lowLatency);
         Console.WriteLine("=========================\r\n");
 
         // Perform asynchronous benchmarks with 100 ms network latency
@@ -59,6 +81,41 @@ class Program
         Console.WriteLine("=========================\r\n");
         await BatchGetStringBenchmarkAsync(redisConsumer, operations, "batch_high_latency", highLatency);
         Console.WriteLine("=========================\r\n");
+
+        // Perform Lua benchmarks with 100 ms network latency
+        await LuaSetStringBenchmarkAsync(redisConsumer, operations, luaMaxParams, "lua_high_latency", highLatency);
+        Console.WriteLine("=========================\r\n");
+        await LuaGetStringBenchmarkAsync(redisConsumer, operations, luaMaxParams, "lua_high_latency", highLatency);
+        Console.WriteLine("=========================\r\n");
+    }
+
+    private static async Task LuaSetStringBenchmarkAsync(
+        RedisConsumer redisConsumer, 
+        int operations, 
+        int luaMaxParams,
+        string keyPrefix, 
+        int networkLatencyInMs = 0)
+    {
+        // Implementation for async Lua benchmark
+        for (int i = 0; i < 6; i++)
+        {
+            await redisConsumer.LuaSetStringBenchmarkBatchingAsync(operations, $"{keyPrefix}_{i}", luaMaxParams, networkLatencyInMs);
+            operations *= 10; // Increase the number of operations for each iteration
+        }
+    }
+    private static async Task LuaGetStringBenchmarkAsync(
+        RedisConsumer redisConsumer, 
+        int operations, 
+        int luaMaxParams,
+        string keyPrefix, 
+        int networkLatencyInMs = 0)
+    {
+        // Implementation for async Lua benchmark
+        for (int i = 0; i < 6; i++)
+        {
+            await redisConsumer.LuaGetStringBenchmarkBatchingAsync(operations, $"{keyPrefix}_{i}", luaMaxParams, networkLatencyInMs);
+            operations *= 10; // Increase the number of operations for each iteration
+        }
     }
 
     private static async Task BatchSetStringBenchmarkAsync(
@@ -68,9 +125,9 @@ class Program
         int networkLatencyInMs = 0)
     {
         // Implementation for async batch benchmark
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 6; i++)
         {
-            await redisConsumer.BatchSetStringBenchmarkAsync(operations, $"{keyPrefix}_{i}", networkLatencyInMs);
+            await redisConsumer.LuaGetStringBenchmarkBatchingAsync(operations, $"{keyPrefix}_{i}", networkLatencyInMs);
             operations *= 10; // Increase the number of operations for each iteration
         }
     }
@@ -81,7 +138,7 @@ class Program
         int networkLatencyInMs = 0)
     {
         // Implementation for async batch benchmark
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 6; i++)
         {
             await redisConsumer.BatchGetStringBenchmarkAsync(operations, $"{keyPrefix}_{i}", networkLatencyInMs);
             operations *= 10; // Increase the number of operations for each iteration
@@ -95,7 +152,7 @@ class Program
         int networkLatencyInMs = 0)
     {
         // Implementation for async benchmark
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 6; i++)
         {
             await redisConsumer.SetStringBenchmarkAsync(operations, $"{keyPrefix}_{i}", networkLatencyInMs);
             operations *= 10; // Increase the number of operations for each iteration
@@ -109,7 +166,7 @@ class Program
         int networkLatencyInMs = 0)
     {
         // Implementation for async benchmark
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 6; i++)
         {
             await redisConsumer.GetStringBenchmarkAsync(operations, $"{keyPrefix}_{i}", networkLatencyInMs);
             operations *= 10; // Increase the number of operations for each iteration
